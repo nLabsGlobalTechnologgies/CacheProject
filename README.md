@@ -50,7 +50,7 @@ This repository showcases an example of using Entity Framework Core (EF Core) wi
 
 - **Environment:** Development
 - **Dependencies:**
-  - .NET 5.0
+  - .NET 8.0
   - Entity Framework Core
   - Microsoft.AspNetCore
   - Microsoft.EntityFrameworkCore.InMemory
