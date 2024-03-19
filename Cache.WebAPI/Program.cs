@@ -2,6 +2,7 @@ using Cache.WebAPI.Context;
 using Cache.WebAPI.Models;
 using EntityFrameworkCorePagination.Nuget.Pagination;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,8 +14,12 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddMemoryCache();
+
 var scoped = builder.Services.BuildServiceProvider();
 var context = scoped.GetRequiredService<AppDbContext>();
+
+var memoryCache = scoped.GetRequiredService<IMemoryCache>();
 
 var app = builder.Build();
 
@@ -26,7 +31,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("GetAllProducts", async(int pageNumber, int pageSize, CancellationToken cancellationToken) =>
+app.MapGet("GetAllWithPagination", async(int pageNumber, int pageSize, CancellationToken cancellationToken) =>
 {
     //List<Product>? products = await context.Products!.Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
     //decimal count = await context.Products!.CountAsync(cancellationToken);
@@ -53,8 +58,10 @@ app.MapGet("GetAllProducts", async(int pageNumber, int pageSize, CancellationTok
 
 app.MapGet("SeedData", () =>
 {
+    memoryCache.Remove("products");
+
     var products = new List<Product>();
-    for (int i = 0; i < 1000; i++)
+    for (int i = 0; i < 100000; i++)
     {
         Product product = new()
         {
@@ -68,5 +75,24 @@ app.MapGet("SeedData", () =>
 
     return new { Message = "Product SeedData created successfull" };
 });
+
+
+app.MapGet("GetAllProducts", async(CancellationToken cancellationToken) =>
+{
+    List<Product>? products;
+    memoryCache.TryGetValue("products", out products);
+    if (products is null)
+    {
+        products = await context.Products!.ToListAsync(cancellationToken);
+        memoryCache.Set("products", products, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30)
+        });
+    }
+
+    return products.Count();
+});
+
+
 
 app.Run();
