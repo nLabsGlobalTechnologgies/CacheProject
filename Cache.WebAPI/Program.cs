@@ -3,6 +3,8 @@ using Cache.WebAPI.Models;
 using EntityFrameworkCorePagination.Nuget.Pagination;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using StackExchange.Redis;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +60,10 @@ app.MapGet("GetAllWithPagination", async(int pageNumber, int pageSize, Cancellat
 
 app.MapGet("SeedData", () =>
 {
+    var db = ConnectionMultiplexer.Connect("localhost:6379");
+    var redisCache = db.GetDatabase();
+    redisCache.KeyDelete("products");
+
     memoryCache.Remove("products");
 
     var products = new List<Product>();
@@ -77,7 +83,7 @@ app.MapGet("SeedData", () =>
 });
 
 
-app.MapGet("GetAllProducts", async(CancellationToken cancellationToken) =>
+app.MapGet("GetAllProductsCache", async(CancellationToken cancellationToken) =>
 {
     List<Product>? products;
     memoryCache.TryGetValue("products", out products);
@@ -88,6 +94,29 @@ app.MapGet("GetAllProducts", async(CancellationToken cancellationToken) =>
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30)
         });
+    }
+
+    return products.Count();
+});
+
+app.MapGet("GetAllProductsRedis", async (CancellationToken cancellationToken) =>
+{
+    var db = ConnectionMultiplexer.Connect("localhost:6379");
+    var redisCache = db.GetDatabase();
+
+    List<Product>? products = null;
+    var redisValue = redisCache.StringGet("products");
+
+    if (!redisValue.IsNullOrEmpty)
+    {
+        products = JsonSerializer.Deserialize<List<Product>?>(redisValue);
+    }
+
+    
+    if (products is null)
+    {
+        products = await context.Products!.ToListAsync(cancellationToken);
+        redisCache.StringSet("products", JsonSerializer.Serialize(products), TimeSpan.FromMinutes(20));
     }
 
     return products.Count();
