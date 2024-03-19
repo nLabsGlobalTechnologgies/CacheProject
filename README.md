@@ -6,7 +6,7 @@ This repository showcases an example of using Entity Framework Core (EF Core) wi
 
 1. **Clone the Repository:**
    Clone this repository to your local machine using the following command:
-   ```bash
+```bash
    git clone <repository-url>
    dotnet restore
    dotnet run
